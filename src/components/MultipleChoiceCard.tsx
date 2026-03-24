@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import type { MultipleChoiceQuestion } from '../types/Question';
 import type { SubmissionResult } from '../hooks/useQuestionSession';
+import { colors } from '../theme/colors';
+import { shuffleArray } from '../utils/array';
 
 interface MultipleChoiceCardProps {
   question: MultipleChoiceQuestion;
@@ -31,6 +33,11 @@ const MultipleChoiceCardComponent = ({
   onSelectOption,
   disabled = false,
 }: MultipleChoiceCardProps) => {
+  const options = useMemo(
+    () => shuffleArray(question.options),
+    [question.id],
+  );
+
   const handlePress = (optionId: string) => (event: GestureResponderEvent) => {
     event.preventDefault();
     if (disabled) {
@@ -41,7 +48,6 @@ const MultipleChoiceCardComponent = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.prompt}>{question.prompt}</Text>
       <Text style={styles.sentence}>
         {renderSentence(
           question.sentence,
@@ -49,10 +55,10 @@ const MultipleChoiceCardComponent = ({
         )}
       </Text>
       <View style={styles.optionsWrapper}>
-        {question.options.map((option, index) => {
+        {options.map((option, index) => {
+          const isLast = index === options.length - 1;
           const isSelected = option.id === selectedOptionId;
           const isCorrect = option.id === question.correctOptionId;
-          const isLast = index === question.options.length - 1;
 
           const optionStatus =
             status === 'correct' && isCorrect
@@ -76,9 +82,6 @@ const MultipleChoiceCardComponent = ({
               onPress={handlePress(option.id)}
             >
               <Text style={styles.optionValue}>{option.value}</Text>
-              {option.helper ? (
-                <Text style={styles.optionHelper}>{option.helper}</Text>
-              ) : null}
             </Pressable>
           );
         })}
@@ -101,51 +104,50 @@ const getCorrectValue = (question: MultipleChoiceQuestion) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: colors.background,
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 16,
   },
   prompt: {
     fontSize: 16,
-    color: '#3a3a3a',
-    fontWeight: '500',
-    marginBottom: 8,
+    color: colors.accent,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   sentence: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#1f2933',
-    marginBottom: 16,
+    color: colors.primary,
   },
   optionsWrapper: {
     marginBottom: 12,
   },
   option: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#f7fafc',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: colors.surface,
   },
   optionWithSpacing: {
     marginBottom: 12,
   },
   optionSelected: {
-    borderColor: '#2563eb',
+    borderColor: colors.primary,
+    backgroundColor: '#e4e7ff',
   },
   optionCorrect: {
-    borderColor: '#15803d',
-    backgroundColor: '#dcfce7',
+    borderColor: colors.primary,
+    backgroundColor: '#dce1ff',
   },
   optionIncorrect: {
-    borderColor: '#b91c1c',
-    backgroundColor: '#fee2e2',
+    borderColor: '#8b1a1a',
+    backgroundColor: '#ffe5e5',
   },
   optionDisabled: {
     opacity: 0.6,
@@ -153,15 +155,16 @@ const styles = StyleSheet.create({
   optionValue: {
     fontSize: 18,
     fontWeight: '600',
+    color: colors.text,
   },
   optionHelper: {
     fontSize: 14,
-    color: '#6b7280',
+    color: colors.mutedText,
     marginTop: 4,
   },
   translation: {
     fontSize: 16,
-    color: '#475569',
+    color: colors.mutedText,
     marginTop: 12,
   },
 });

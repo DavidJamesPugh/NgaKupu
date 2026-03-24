@@ -3,33 +3,67 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SAMPLE_QUESTIONS } from '../../src/data/sampleQuestions';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { createQuestionSet } from '../src/data/sampleQuestions';
 import {
   AudioPromptCard,
   FreeResponseCard,
   MultipleChoiceCard,
-} from '../../src/components';
+  WordMatchCard,
+} from '../src/components';
 import {
   getSubmissionPlaceholder,
   useQuestionSession,
   type SubmissionResult,
-} from '../../src/hooks/useQuestionSession';
+} from '../src/hooks/useQuestionSession';
 import {
   isAudioPromptQuestion,
   isFreeResponseQuestion,
   isMultipleChoiceQuestion,
-} from '../../src/types/Question';
+  isWordMatchQuestion,
+  type Question,
+} from '../src/types/Question';
+import { colors } from '../src/theme/colors';
+
+const difficultyLabels: Record<string, string> = {
+  tamariki: 'Tamariki',
+  tauira: 'Tauira',
+  matua: 'Matua',
+  tohunga: 'Tohunga',
+};
+
+const categoryLabels: Record<string, string> = {
+  'written-vocabulary': 'Written Vocabulary',
+  'listening-vocabulary': 'Listening Vocabulary',
+  'written-comprehension': 'Written Comprehension',
+  'listening-comprehension': 'Listening Comprehension',
+};
 
 export default function PracticeScreen() {
-  const insets = useSafeAreaInsets();
-  const contentTop = insets.top + 64;
+  const router = useRouter();
+  const { difficulty, category } =
+    useLocalSearchParams<{ difficulty?: string; category?: string }>();
+  const activeDifficulty = typeof difficulty === 'string' ? difficulty : undefined;
+  const activeCategory = typeof category === 'string' ? category : undefined;
+
+  const questionPool = useMemo<Question[]>(() => createQuestionSet(), []);
+
+  const filteredQuestions = useMemo(() => {
+    let working = questionPool;
+    if (activeDifficulty) {
+      working = working.filter((question) => question.difficulty === activeDifficulty);
+    }
+    if (activeCategory) {
+      working = working.filter((question) => question.category === activeCategory);
+    }
+    return working;
+  }, [questionPool, activeDifficulty, activeCategory]);
 
   const {
     currentQuestion,
@@ -41,7 +75,12 @@ export default function PracticeScreen() {
     restart,
     hasNext,
     score,
-  } = useQuestionSession(SAMPLE_QUESTIONS, { shuffle: false });
+  } = useQuestionSession(filteredQuestions, { shuffle: false });
+
+  const noQuestionsAvailable = filteredQuestions.length === 0;
+  const isSelectionQuestion =
+    currentQuestion != null &&
+    (isMultipleChoiceQuestion(currentQuestion) || isWordMatchQuestion(currentQuestion));
 
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [responseValue, setResponseValue] = useState('');
@@ -65,22 +104,19 @@ export default function PracticeScreen() {
       return;
     }
 
-    if (isMultipleChoiceQuestion(currentQuestion)) {
-      if (!selectedOptionId) {
-        setErrorMessage('Please choose an option before submitting.');
-        return;
-      }
-      const result = submitAnswer(selectedOptionId);
-      handlePostSubmit(result);
-      return;
-    }
-
     const trimmed = responseValue.trim();
     if (!trimmed) {
       setErrorMessage('Please enter your answer before submitting.');
       return;
     }
     const result = submitAnswer(trimmed);
+    handlePostSubmit(result);
+  };
+
+  const handleOptionSelect = (optionId: string) => {
+    setSelectedOptionId(optionId);
+    setErrorMessage(undefined);
+    const result = submitAnswer(optionId);
     handlePostSubmit(result);
   };
 
@@ -91,12 +127,37 @@ export default function PracticeScreen() {
     }
   };
 
+  if (noQuestionsAvailable) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.select({ ios: 'padding', android: undefined })}
+        >
+          <ScrollView contentContainerStyle={styles.container}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Āe, e kare!</Text>
+              <Text style={styles.emptyBody}>
+                Kāore anō kia whakaritea he pātai mō tēnei taumata. Hoki ki te kāinga kia
+                tīpako i tētahi atu uauatanga.
+              </Text>
+              <SecondaryButton label="Back to home" onPress={() => router.push('/')} />
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
   if (!currentQuestion) {
     return null;
   }
 
+  const headerCategory = activeCategory ?? currentQuestion.category;
+  const headerDifficulty = activeDifficulty ?? currentQuestion.difficulty;
+
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: contentTop }]}>
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.select({ ios: 'padding', android: undefined })}
@@ -105,16 +166,7 @@ export default function PracticeScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.sectionSpacing}>
-            <View style={styles.header}>
-              <Text style={styles.progressLabel}>
-                Question {currentIndex + 1} of {totalQuestions}
-              </Text>
-              <View style={styles.scorePill}>
-                <Text style={styles.scoreText}>Score: {score}</Text>
-              </View>
-            </View>
-          </View>
+         
 
           <View style={styles.sectionSpacing}>
             {renderQuestionCard({
@@ -123,7 +175,7 @@ export default function PracticeScreen() {
               selectedOptionId,
               responseValue,
               placeholder,
-              onSelectOption: setSelectedOptionId,
+              onSelectOption: handleOptionSelect,
               onChangeResponse: setResponseValue,
               onSubmit: handleSubmit,
             })}
@@ -136,23 +188,13 @@ export default function PracticeScreen() {
           ) : null}
 
           <View style={styles.sectionSpacing}>
-            {status === 'correct' ? (
-              <FeedbackBanner tone="success" text={'Tika! Ka rawe tō whakautu.\nCorrect! Great answer'} />
-            ) : null}
-            {status === 'incorrect' ? (
-              <FeedbackBanner
-                tone="error"
-                text="Ehara i te mea tika. Whakamātau anō!"
+            {!isSelectionQuestion ? (
+              <PrimaryButton
+                label={status === 'idle' ? 'Check answer' : 'Check again'}
+                onPress={handleSubmit}
+                disabled={status === 'correct'}
               />
             ) : null}
-          </View>
-
-          <View style={styles.sectionSpacing}>
-            <PrimaryButton
-              label={status === 'idle' ? 'Check answer' : 'Check again'}
-              onPress={handleSubmit}
-              disabled={status === 'correct'}
-            />
             {hasNext && status === 'correct' ? (
               <SecondaryButton label="Next question" onPress={goToNext} />
             ) : null}
@@ -161,6 +203,20 @@ export default function PracticeScreen() {
             ) : null}
             {status !== 'correct' && hasNext ? (
               <SecondaryButton label="Skip question" onPress={goToNext} />
+            ) : null}
+            <SecondaryButton label="Back to home" onPress={() => router.push('/')} />
+          </View>
+          
+
+          <View style={styles.sectionSpacing}>
+            {status === 'correct' ? (
+              <FeedbackBanner tone="success" text={'Tika! Ka rawe tō whakautu.\nCorrect! Great answer'} />
+            ) : null}
+            {status === 'incorrect' ? (
+              <FeedbackBanner
+                tone="error"
+                text="Ehara i te mea tika. Whakamātau anō!"
+              />
             ) : null}
           </View>
         </ScrollView>
@@ -197,6 +253,18 @@ const renderQuestionCard = ({
   if (isMultipleChoiceQuestion(currentQuestion)) {
     return (
       <MultipleChoiceCard
+        question={currentQuestion}
+        selectedOptionId={selectedOptionId}
+        status={status}
+        onSelectOption={onSelectOption}
+        disabled={status === 'correct'}
+      />
+    );
+  }
+
+  if (isWordMatchQuestion(currentQuestion)) {
+    return (
+      <WordMatchCard
         question={currentQuestion}
         selectedOptionId={selectedOptionId}
         status={status}
@@ -296,16 +364,20 @@ const SecondaryButton = ({ label, onPress, disabled }: ButtonProps) => (
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.background,
   },
   flex: {
     flex: 1,
   },
   container: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 0,
+    gap: 6,
+    backgroundColor: colors.background,
   },
   sectionSpacing: {
-    marginBottom: 24,
+    marginBottom: 5,
   },
   header: {
     flexDirection: 'row',
@@ -315,7 +387,38 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#0f172a',
+    color: colors.primary,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  difficultyPill: {
+    backgroundColor: '#ede9fe',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  difficultyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6d28d9',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  categoryPill: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   scorePill: {
     backgroundColor: '#e0f2fe',
@@ -326,7 +429,7 @@ const styles = StyleSheet.create({
   scoreText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0369a1',
+    color: colors.accent,
   },
   audioBlock: {
     marginBottom: 12,
@@ -335,7 +438,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   errorMessage: {
-    color: '#b91c1c',
+    color: colors.accent,
     fontSize: 14,
   },
   feedbackBanner: {
@@ -345,37 +448,38 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   feedbackSuccess: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#dce1ff',
   },
   feedbackError: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#ffe5e5',
   },
   feedbackText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1f2937',
+    color: colors.primary,
   },
   primaryButton: {
-    backgroundColor: '#1d4ed8',
+    backgroundColor: colors.accent,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
   },
   primaryButtonDisabled: {
-    backgroundColor: '#94a3b8',
+    backgroundColor: '#e5e7eb',
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: colors.background,
     fontSize: 16,
     fontWeight: '600',
   },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: '#1d4ed8',
+    borderColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 12,
   },
   secondaryButtonDisabled: {
     opacity: 0.6,
@@ -383,6 +487,27 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1d4ed8',
+    color: colors.primary,
+  },
+  emptyState: {
+    padding: 32,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    gap: 16,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  emptyBody: {
+    fontSize: 16,
+    color: colors.mutedText,
+    lineHeight: 24,
   },
 });

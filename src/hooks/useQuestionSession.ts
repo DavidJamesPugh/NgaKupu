@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   isAudioPromptQuestion,
   isFreeResponseQuestion,
   isMultipleChoiceQuestion,
+  isWordMatchQuestion,
   type Question,
 } from '../types/Question';
 
@@ -62,13 +63,23 @@ export const useQuestionSession = (
 
   const currentQuestion = questionSet[currentIndex];
 
+  useEffect(() => {
+    setCurrentIndex(0);
+    setScore(0);
+    setStatus('idle');
+    setLastSubmittedAnswer(undefined);
+  }, [questionSet]);
+
   const evaluateAnswer = useCallback(
     (answer: string) => {
       if (!currentQuestion) {
         return false;
       }
 
-      if (isMultipleChoiceQuestion(currentQuestion)) {
+      if (
+        isMultipleChoiceQuestion(currentQuestion) ||
+        isWordMatchQuestion(currentQuestion)
+      ) {
         return currentQuestion.correctOptionId === answer;
       }
 
@@ -144,6 +155,9 @@ export const useQuestionSession = (
 export const getSubmissionPlaceholder = (question: Question): string => {
   if (isMultipleChoiceQuestion(question)) {
     return 'Select the answer';
+  }
+  if (isWordMatchQuestion(question)) {
+    return 'Tap the matching word';
   }
   if (isAudioPromptQuestion(question)) {
     return 'Type the translation you heard';

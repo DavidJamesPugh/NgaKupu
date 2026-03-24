@@ -1,4 +1,12 @@
-export type QuestionKind = 'multiple-choice' | 'free-response' | 'audio';
+import type { ImageSourcePropType } from 'react-native';
+
+export type QuestionCategory =
+  | 'written-vocabulary'
+  | 'listening-vocabulary'
+  | 'written-comprehension'
+  | 'listening-comprehension';
+
+export type QuestionKind = 'multiple-choice' | 'free-response' | 'audio' | 'word-match';
 
 export interface QuestionBase {
   /**
@@ -20,7 +28,11 @@ export interface QuestionBase {
   /**
    * Lightweight difficulty tag for ordering or filtering.
    */
-  difficulty?: 'tamariki' | 'tauira' | 'tohunga';
+  difficulty?: 'tamariki' | 'tauira' | 'matua' | 'tohunga';
+  /**
+   * Learning modality classification (vocabulary/comprehension, written/listening).
+   */
+  category: QuestionCategory;
 }
 
 export interface MultipleChoiceOption {
@@ -34,6 +46,7 @@ export interface MultipleChoiceOption {
    * (e.g. literal translation or usage hint).
    */
   helper?: string;
+  image?: ImageSourcePropType;
 }
 
 export interface MultipleChoiceQuestion extends QuestionBase {
@@ -98,11 +111,35 @@ export interface AudioPromptQuestion extends QuestionBase {
   responseMode?: 'free-response' | 'multiple-choice';
 }
 
-export type Question = MultipleChoiceQuestion | FreeResponseQuestion | AudioPromptQuestion;
+export interface WordMatchQuestion extends QuestionBase {
+  kind: 'word-match';
+  /**
+   * The word shown to the learner.
+   */
+  sourceText: string;
+  /**
+   * Which language the source word is in (for labelling the UI).
+   */
+  sourceLanguage: 'maori' | 'english';
+  options: MultipleChoiceOption[];
+  correctOptionId: string;
+  image?: ImageSourcePropType;
+  audio?: number | { uri: string };
+}
+
+export type Question =
+  | MultipleChoiceQuestion
+  | FreeResponseQuestion
+  | AudioPromptQuestion
+  | WordMatchQuestion;
 
 export const isMultipleChoiceQuestion = (
   question: Question,
 ): question is MultipleChoiceQuestion => question.kind === 'multiple-choice';
+
+export const isWordMatchQuestion = (
+  question: Question,
+): question is WordMatchQuestion => question.kind === 'word-match';
 
 export const isFreeResponseQuestion = (
   question: Question,

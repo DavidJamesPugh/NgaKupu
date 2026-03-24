@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import type { SubmissionResult } from '../hooks/useQuestionSession';
+import { colors } from '../theme/colors';
 
 interface FreeResponseCardProps {
   prompt: string;
@@ -54,45 +55,44 @@ const FreeResponseCardComponent = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#ffffff',
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: colors.background,
+    padding: 24,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 12,
   },
   prompt: {
     fontSize: 16,
-    color: '#3a3a3a',
-    fontWeight: '500',
-    marginBottom: 8,
+    color: colors.accent,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   sentence: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#1f2933',
-    marginBottom: 16,
+    color: colors.primary,
+    marginBottom: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 16,
-    minHeight: 90,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 18,
+    minHeight: 110,
     fontSize: 18,
-    lineHeight: 24,
-    backgroundColor: '#f7fafc',
-    color: '#111827',
+    lineHeight: 26,
+    backgroundColor: colors.surface,
+    color: colors.text,
   },
   inputCorrect: {
-    borderColor: '#15803d',
-    backgroundColor: '#dcfce7',
+    borderColor: colors.primary,
+    backgroundColor: '#dce1ff',
   },
   inputIncorrect: {
-    borderColor: '#b91c1c',
-    backgroundColor: '#fee2e2',
+    borderColor: '#8b1a1a',
+    backgroundColor: '#ffe5e5',
   },
   inputDisabled: {
     opacity: 0.6,
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   exemplar: {
     marginTop: 12,
     fontSize: 16,
-    color: '#475569',
+    color: colors.mutedText,
   },
 });
 
