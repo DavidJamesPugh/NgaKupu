@@ -11,10 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createQuestionSet } from '../src/data/sampleQuestions';
+import { buildTranslationChoiceOptions } from '../src/data/translationChoiceLessons';
 import {
   AudioPromptCard,
   FreeResponseCard,
   MultipleChoiceCard,
+  TranslationChoiceCard,
   WordMatchCard,
 } from '../src/components';
 import {
@@ -26,6 +28,7 @@ import {
   isAudioPromptQuestion,
   isFreeResponseQuestion,
   isMultipleChoiceQuestion,
+  isTranslationChoiceQuestion,
   isWordMatchQuestion,
   type Question,
 } from '../src/types/Question';
@@ -77,10 +80,23 @@ export default function PracticeScreen() {
     score,
   } = useQuestionSession(filteredQuestions, { shuffle: false });
 
+  /** Fresh distractor subset + order per step (translation-choice only). */
+  const questionForDisplay = useMemo(() => {
+    if (!currentQuestion || !isTranslationChoiceQuestion(currentQuestion)) {
+      return currentQuestion;
+    }
+    return buildTranslationChoiceOptions(
+      currentQuestion,
+      `${currentIndex}-${currentQuestion.id}`,
+    );
+  }, [currentQuestion, currentIndex]);
+
   const noQuestionsAvailable = filteredQuestions.length === 0;
   const isSelectionQuestion =
     currentQuestion != null &&
-    (isMultipleChoiceQuestion(currentQuestion) || isWordMatchQuestion(currentQuestion));
+    (isMultipleChoiceQuestion(currentQuestion) ||
+      isWordMatchQuestion(currentQuestion) ||
+      isTranslationChoiceQuestion(currentQuestion));
 
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [responseValue, setResponseValue] = useState('');
@@ -170,7 +186,7 @@ export default function PracticeScreen() {
 
           <View style={styles.sectionSpacing}>
             {renderQuestionCard({
-              currentQuestion,
+              question: questionForDisplay,
               status,
               selectedOptionId,
               responseValue,
@@ -226,7 +242,7 @@ export default function PracticeScreen() {
 }
 
 interface RenderCardParams {
-  currentQuestion: ReturnType<typeof useQuestionSession>['currentQuestion'];
+  question: Question | undefined;
   status: SubmissionResult;
   selectedOptionId?: string;
   responseValue: string;
@@ -237,7 +253,7 @@ interface RenderCardParams {
 }
 
 const renderQuestionCard = ({
-  currentQuestion,
+  question,
   status,
   selectedOptionId,
   responseValue,
@@ -246,14 +262,14 @@ const renderQuestionCard = ({
   onChangeResponse,
   onSubmit,
 }: RenderCardParams) => {
-  if (!currentQuestion) {
+  if (!question) {
     return null;
   }
 
-  if (isMultipleChoiceQuestion(currentQuestion)) {
+  if (isMultipleChoiceQuestion(question)) {
     return (
       <MultipleChoiceCard
-        question={currentQuestion}
+        question={question}
         selectedOptionId={selectedOptionId}
         status={status}
         onSelectOption={onSelectOption}
@@ -262,10 +278,10 @@ const renderQuestionCard = ({
     );
   }
 
-  if (isWordMatchQuestion(currentQuestion)) {
+  if (isWordMatchQuestion(question)) {
     return (
       <WordMatchCard
-        question={currentQuestion}
+        question={question}
         selectedOptionId={selectedOptionId}
         status={status}
         onSelectOption={onSelectOption}
@@ -274,12 +290,24 @@ const renderQuestionCard = ({
     );
   }
 
-  if (isFreeResponseQuestion(currentQuestion)) {
+  if (isTranslationChoiceQuestion(question)) {
+    return (
+      <TranslationChoiceCard
+        question={question}
+        selectedOptionId={selectedOptionId}
+        status={status}
+        onSelectOption={onSelectOption}
+        disabled={status === 'correct'}
+      />
+    );
+  }
+
+  if (isFreeResponseQuestion(question)) {
     return (
       <FreeResponseCard
-        prompt={currentQuestion.prompt}
-        sentence={currentQuestion.sentence}
-        exemplar={currentQuestion.exemplar}
+        prompt={question.prompt}
+        sentence={question.sentence}
+        exemplar={question.exemplar}
         value={responseValue}
         placeholder={placeholder}
         status={status}
@@ -290,15 +318,15 @@ const renderQuestionCard = ({
     );
   }
 
-  if (isAudioPromptQuestion(currentQuestion)) {
+  if (isAudioPromptQuestion(question)) {
     return (
       <View style={styles.audioBlock}>
         <View style={styles.audioPromptCard}>
-          <AudioPromptCard question={currentQuestion} status={status} />
+          <AudioPromptCard question={question} status={status} />
         </View>
         <FreeResponseCard
           prompt="Tuhia tō whakamāoritanga"
-          sentence={`“${currentQuestion.transcript}”`}
+          sentence={`“${question.transcript}”`}
           value={responseValue}
           placeholder={placeholder}
           status={status}

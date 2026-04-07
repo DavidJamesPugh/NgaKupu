@@ -1,5 +1,6 @@
 import type { ImageSourcePropType } from 'react-native';
 import type { Question, QuestionCategory, WordMatchQuestion } from '../types/Question';
+import { buildTranslationChoiceQuestions } from './translationChoiceLessons';
 import { shuffleArray } from '../utils/array';
 
 type Language = 'maori' | 'english';
@@ -263,5 +264,6 @@ const buildLessonQuestion = (lesson: LessonConfig): WordMatchQuestion => {
 
 export const createQuestionSet = (): Question[] => {
   const lessonQuestions = LESSONS.map((lesson) => buildLessonQuestion(lesson));
-  return shuffleArray(lessonQuestions);
+  const translationQuestions = buildTranslationChoiceQuestions();
+  return shuffleArray([...lessonQuestions, ...translationQuestions]);
 };

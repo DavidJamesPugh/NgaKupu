@@ -3,6 +3,7 @@ import {
   isAudioPromptQuestion,
   isFreeResponseQuestion,
   isMultipleChoiceQuestion,
+  isTranslationChoiceQuestion,
   isWordMatchQuestion,
   type Question,
 } from '../types/Question';
@@ -78,7 +79,8 @@ export const useQuestionSession = (
 
       if (
         isMultipleChoiceQuestion(currentQuestion) ||
-        isWordMatchQuestion(currentQuestion)
+        isWordMatchQuestion(currentQuestion) ||
+        isTranslationChoiceQuestion(currentQuestion)
       ) {
         return currentQuestion.correctOptionId === answer;
       }
@@ -158,6 +160,9 @@ export const getSubmissionPlaceholder = (question: Question): string => {
   }
   if (isWordMatchQuestion(question)) {
     return 'Tap the matching word';
+  }
+  if (isTranslationChoiceQuestion(question)) {
+    return 'Tap the correct translation';
   }
   if (isAudioPromptQuestion(question)) {
     return 'Type the translation you heard';

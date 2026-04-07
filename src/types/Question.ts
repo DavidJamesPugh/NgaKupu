@@ -6,7 +6,12 @@ export type QuestionCategory =
   | 'written-comprehension'
   | 'listening-comprehension';
 
-export type QuestionKind = 'multiple-choice' | 'free-response' | 'audio' | 'word-match';
+export type QuestionKind =
+  | 'multiple-choice'
+  | 'free-response'
+  | 'audio'
+  | 'word-match'
+  | 'translation-choice';
 
 export interface QuestionBase {
   /**
@@ -127,11 +132,46 @@ export interface WordMatchQuestion extends QuestionBase {
   audio?: number | { uri: string };
 }
 
+/**
+ * Full-sentence translation: pick the best option in the other language.
+ * Distractors are authored with small, meaningful differences (number, place, subject).
+ */
+export interface TranslationChoiceQuestion extends QuestionBase {
+  kind: 'translation-choice';
+  /**
+   * Sentence the learner translates from.
+   */
+  sourceText: string;
+  /**
+   * Language of {@link sourceText} (options are in the other language).
+   */
+  sourceLanguage: 'maori' | 'english';
+  options: MultipleChoiceOption[];
+  correctOptionId: string;
+  /**
+   * Correct answer text (duplicates the winning option’s `value`; used to rebuild options from a pool).
+   */
+  correctAnswerText: string;
+  /**
+   * All authored wrong answers. If longer than {@link wrongOptionCount}, a random subset is shown each time.
+   */
+  distractorPool: readonly string[];
+  /**
+   * How many wrong options to show alongside the correct one (default 2 → three choices total).
+   */
+  wrongOptionCount?: number;
+  /**
+   * Optional line shown after answering (e.g. gloss or alternative wording).
+   */
+  translationNote?: string;
+}
+
 export type Question =
   | MultipleChoiceQuestion
   | FreeResponseQuestion
   | AudioPromptQuestion
-  | WordMatchQuestion;
+  | WordMatchQuestion
+  | TranslationChoiceQuestion;
 
 export const isMultipleChoiceQuestion = (
   question: Question,
@@ -148,3 +188,7 @@ export const isFreeResponseQuestion = (
 export const isAudioPromptQuestion = (
   question: Question,
 ): question is AudioPromptQuestion => question.kind === 'audio';
+
+export const isTranslationChoiceQuestion = (
+  question: Question,
+): question is TranslationChoiceQuestion => question.kind === 'translation-choice';
