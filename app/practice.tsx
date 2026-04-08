@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { createQuestionSet } from '../src/data/sampleQuestions';
 import { buildTranslationChoiceOptions } from '../src/data/translationChoiceLessons';
+import { applyStageFilters, findLearningStage } from '../src/data/learningPaths';
 import {
   AudioPromptCard,
   FreeResponseCard,
@@ -24,6 +25,7 @@ import {
   useQuestionSession,
   type SubmissionResult,
 } from '../src/hooks/useQuestionSession';
+import { useLearningProgress } from '../src/hooks/useLearningProgress';
 import {
   isAudioPromptQuestion,
   isFreeResponseQuestion,
@@ -50,14 +52,37 @@ const categoryLabels: Record<string, string> = {
 
 export default function PracticeScreen() {
   const router = useRouter();
-  const { difficulty, category } =
-    useLocalSearchParams<{ difficulty?: string; category?: string }>();
+  const { difficulty, category, path, stage, guide } =
+    useLocalSearchParams<{
+      difficulty?: string;
+      category?: string;
+      path?: string;
+      stage?: string;
+      guide?: string;
+    }>();
   const activeDifficulty = typeof difficulty === 'string' ? difficulty : undefined;
   const activeCategory = typeof category === 'string' ? category : undefined;
+  const pathId = typeof path === 'string' ? path : undefined;
+  const stageId = typeof stage === 'string' ? stage : undefined;
+  const guideEnabled = guide === 'true';
+  const { markStageComplete } = useLearningProgress();
+  const completionKeyRef = useRef<string | undefined>(undefined);
+  const autoNextKeyRef = useRef<string | undefined>(undefined);
+  const autoReturnRef = useRef(false);
+  const returnTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const questionPool = useMemo<Question[]>(() => createQuestionSet(), []);
+  const learningStage = useMemo(() => {
+    if (!pathId || !stageId) {
+      return undefined;
+    }
+    return findLearningStage({ pathId, stageId });
+  }, [pathId, stageId]);
 
   const filteredQuestions = useMemo(() => {
+    if (learningStage) {
+      return applyStageFilters(questionPool, learningStage.stage);
+    }
     let working = questionPool;
     if (activeDifficulty) {
       working = working.filter((question) => question.difficulty === activeDifficulty);
@@ -66,7 +91,7 @@ export default function PracticeScreen() {
       working = working.filter((question) => question.category === activeCategory);
     }
     return working;
-  }, [questionPool, activeDifficulty, activeCategory]);
+  }, [questionPool, activeDifficulty, activeCategory, learningStage]);
 
   const {
     currentQuestion,
@@ -75,7 +100,6 @@ export default function PracticeScreen() {
     status,
     submitAnswer,
     goToNext,
-    restart,
     hasNext,
     score,
   } = useQuestionSession(filteredQuestions, { shuffle: false });
@@ -92,6 +116,24 @@ export default function PracticeScreen() {
   }, [currentQuestion, currentIndex]);
 
   const noQuestionsAvailable = filteredQuestions.length === 0;
+  const coachHint = useMemo(() => {
+    if (learningStage) {
+      return learningStage.stage.coachTip;
+    }
+    if (!currentQuestion) {
+      return undefined;
+    }
+    if (isTranslationChoiceQuestion(currentQuestion)) {
+      return 'Look for key differences: singular/plural, location words, and verb meaning.';
+    }
+    if (isWordMatchQuestion(currentQuestion) || isMultipleChoiceQuestion(currentQuestion)) {
+      return 'Read all options first, then eliminate choices that clearly do not match.';
+    }
+    if (isAudioPromptQuestion(currentQuestion)) {
+      return 'Play the audio twice and focus on one key kupu before answering.';
+    }
+    return 'Check sentence structure and meaning, then submit your best translation.';
+  }, [currentQuestion, learningStage]);
   const isSelectionQuestion =
     currentQuestion != null &&
     (isMultipleChoiceQuestion(currentQuestion) ||
@@ -101,11 +143,14 @@ export default function PracticeScreen() {
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
   const [responseValue, setResponseValue] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [completionMessage, setCompletionMessage] = useState<string>();
 
   useEffect(() => {
     setSelectedOptionId(undefined);
     setResponseValue('');
     setErrorMessage(undefined);
+    setCompletionMessage(undefined);
+    autoReturnRef.current = false;
   }, [currentQuestion?.id]);
 
   const placeholder = useMemo(() => {
@@ -143,6 +188,54 @@ export default function PracticeScreen() {
     }
   };
 
+  useEffect(() => {
+    if (status !== 'correct' || !hasNext || !currentQuestion) {
+      return;
+    }
+    const key = `${currentQuestion.id}:${currentIndex}`;
+    if (autoNextKeyRef.current === key) {
+      return;
+    }
+    autoNextKeyRef.current = key;
+    const timeout = setTimeout(() => {
+      goToNext();
+    }, 1500);
+    return () => clearTimeout(timeout);
+  }, [status, hasNext, currentQuestion, currentIndex, goToNext]);
+
+  useEffect(() => {
+    const isSessionComplete = status === 'correct' && !hasNext;
+    if (!isSessionComplete || autoReturnRef.current) {
+      return;
+    }
+    autoReturnRef.current = true;
+    const message = learningStage
+      ? `Stage complete: ${learningStage.stage.title}. Returning home...`
+      : 'Session complete. Returning home...';
+    setCompletionMessage(message);
+
+    if (pathId && stageId) {
+      const completionKey = `${pathId}::${stageId}`;
+      if (completionKeyRef.current !== completionKey) {
+        completionKeyRef.current = completionKey;
+        void markStageComplete(pathId, stageId);
+      }
+    }
+
+    returnTimeoutRef.current = setTimeout(() => {
+      router.push({
+        pathname: '/',
+        params: { progressUpdatedAt: Date.now().toString() },
+      });
+    }, 1800);
+
+    return () => {
+      if (returnTimeoutRef.current) {
+        clearTimeout(returnTimeoutRef.current);
+      }
+    };
+  }, [status, hasNext, learningStage, router, pathId, stageId, markStageComplete]);
+
   if (noQuestionsAvailable) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -171,6 +264,9 @@ export default function PracticeScreen() {
 
   const headerCategory = activeCategory ?? currentQuestion.category;
   const headerDifficulty = activeDifficulty ?? currentQuestion.difficulty;
+  const sessionLabel = learningStage
+    ? `${learningStage.path.title} • ${learningStage.stage.title}`
+    : 'Free Practice Session';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -182,7 +278,6 @@ export default function PracticeScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-         
 
           <View style={styles.sectionSpacing}>
             {renderQuestionCard({
@@ -211,20 +306,16 @@ export default function PracticeScreen() {
                 disabled={status === 'correct'}
               />
             ) : null}
-            {hasNext && status === 'correct' ? (
-              <SecondaryButton label="Next question" onPress={goToNext} />
-            ) : null}
-            {!hasNext && status === 'correct' ? (
-              <SecondaryButton label="Restart practice" onPress={restart} />
-            ) : null}
             {status !== 'correct' && hasNext ? (
               <SecondaryButton label="Skip question" onPress={goToNext} />
             ) : null}
-            <SecondaryButton label="Back to home" onPress={() => router.push('/')} />
           </View>
           
 
           <View style={styles.sectionSpacing}>
+            {completionMessage ? (
+              <FeedbackBanner tone="success" text={completionMessage} />
+            ) : null}
             {status === 'correct' ? (
               <FeedbackBanner tone="success" text={'Tika! Ka rawe tō whakautu.\nCorrect! Great answer'} />
             ) : null}
@@ -400,12 +491,26 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 0,
-    gap: 6,
+    paddingBottom: 12,
+    gap: 10,
     backgroundColor: colors.background,
   },
   sectionSpacing: {
     marginBottom: 5,
+  },
+  headerCard: {
+    backgroundColor: '#f3f6ff',
+    borderColor: '#cfd8ff',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    gap: 8,
+    marginBottom: 2,
+  },
+  sessionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
   },
   header: {
     flexDirection: 'row',
@@ -458,6 +563,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.accent,
+  },
+  coachCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#f5c2c2',
+    backgroundColor: '#fff4f4',
+    marginBottom: 4,
+  },
+  coachTitle: {
+    color: colors.accent,
+    fontWeight: '700',
+    fontSize: 14,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  coachBody: {
+    color: '#7a1b1b',
+    fontSize: 14,
+    lineHeight: 20,
   },
   audioBlock: {
     marginBottom: 12,

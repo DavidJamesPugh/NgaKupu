@@ -25,7 +25,6 @@ const TranslationChoiceCardComponent = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.prompt}>{question.prompt}</Text>
       <View style={styles.sentencePanel}>
         <Text style={styles.sourceLabel}>{sourceLanguageLabel(question.sourceLanguage)}</Text>
         <Text style={styles.sourceText}>{question.sourceText}</Text>

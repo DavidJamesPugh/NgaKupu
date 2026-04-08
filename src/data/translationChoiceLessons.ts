@@ -36,16 +36,16 @@ export interface TranslationChoiceLessonDef {
 
 export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
   {
-    id: 'rakiraki-whare',
+    id: 'rakiraki-ngahere',
     difficulty: 'tamariki',
     direction: 'mi-to-en',
     prompt: 'Whakamāoritanga tika — tīpako i te whakamaoritanga Ingarihi.',
-    questionText: 'Ngā rakiraki i haere ki te whare.',
-    correctAnswer: 'The ducks went to the house.',
+    questionText: 'Ngā rakiraki i haere ki te ngahere.',
+    correctAnswer: 'The ducks went to the forest.',
     distractors: [
       'The duck went to the forest.',
       'The duck went to the house.',
-      'The ducks went to the forest.',
+      'The ducks went to the house.',
       'The ducks went to the river.',
     ],
     translationNote: 'Ngā rakiraki: the ducks (plural); ki te whare: to the house.',
@@ -76,15 +76,15 @@ export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
     ],
   },
   {
-    id: 'duck-house-en-to-mi',
+    id: 'duck-forest-en-to-mi',
     difficulty: 'tamariki',
     direction: 'en-to-mi',
     prompt: 'Tīpako te rerenga Māori tika.',
-    questionText: 'The duck went to the house.',
-    correctAnswer: 'I haere te rakiraki ki te whare.',
+    questionText: 'The duck went to the forest.',
+    correctAnswer: 'I haere te rakiraki ki te ngahere.',
     distractors: [
       'I haere ngā rakiraki ki te whare.',
-      'I haere te rakiraki ki te ngahere.',
+      'I haere te rakiraki ki te roto.',
     ],
     translationNote:
       'Te rakiraki (one duck) vs ngā rakiraki (ducks); te whare vs te ngahere (forest).',

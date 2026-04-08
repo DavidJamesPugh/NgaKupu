@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createQuestionSet } from '../src/data/sampleQuestions';
+import { LEARNING_PATHS, getStageQuestionCount } from '../src/data/learningPaths';
+import { useLearningProgress } from '../src/hooks/useLearningProgress';
 import type { Question } from '../src/types/Question';
 import { colors } from '../src/theme/colors';
 
@@ -51,7 +53,14 @@ const categoryDescriptions: Record<Category, string> = {
 };
 
 const Index = () => {
+  const { progressUpdatedAt } = useLocalSearchParams<{ progressUpdatedAt?: string }>();
   const questionSet = useMemo<Question[]>(() => createQuestionSet(), []);
+  const { isLoaded, refreshProgress, clearProgress, getPathProgress, isStageComplete } =
+    useLearningProgress();
+
+  useEffect(() => {
+    refreshProgress();
+  }, [progressUpdatedAt, refreshProgress]);
 
   const availableDifficulties = useMemo<Difficulty[]>(() => {
     const present = new Set<Difficulty>();
@@ -86,13 +95,109 @@ const Index = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>Learn Te Reo Step by Step</Text>
+          <Text style={styles.heroBody}>
+            Follow guided stages with clear goals, short sessions, and gradual difficulty ramps.
+          </Text>
+        </View>
 
-        <View style={styles.cardGrid}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Journeys</Text>
+          <Pressable
+            style={styles.resetButton}
+            onPress={() => {
+              void clearProgress();
+            }}
+          >
+            <Text style={styles.resetButtonText}>Reset progress</Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+        >
+          {LEARNING_PATHS.map((path) => {
+            const progress = getPathProgress(path);
+            return (
+              <View key={path.id} style={styles.carouselCard}>
+                <View style={styles.pathHeaderRow}>
+                  <View style={styles.pathHeaderTextWrap}>
+                    <Text style={styles.pathTitle}>{path.title}</Text>
+                    <Text style={styles.pathDescription}>{path.description}</Text>
+                  </View>
+                  <View
+                    style={{
+                      ...styles.pathStatusPill,
+                      ...(progress.isComplete ? styles.pathStatusDone : styles.pathStatusActive),
+                    }}
+                  >
+                    <Text style={styles.pathStatusText}>
+                      {progress.isComplete ? 'Complete' : `${progress.completeStages}/${progress.totalStages}`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.stageList}>
+                  {path.stages.map((stage, index) => {
+                    const done = isStageComplete(path.id, stage.id);
+                    const stageCount = getStageQuestionCount(questionSet, stage);
+                    return (
+                      <View key={stage.id} style={styles.stageRow}>
+                        <View style={styles.stageTopRow}>
+                          <View
+                            style={{
+                              ...styles.stageBadge,
+                              ...(done ? styles.stageBadgeDone : {}),
+                            }}
+                          >
+                            <Text style={styles.stageBadgeText}>{done ? '✓' : index + 1}</Text>
+                          </View>
+                          <View style={styles.stageTextWrap}>
+                            <Text style={styles.stageTitle}>{stage.title}</Text>
+                            <Text style={styles.stageMeta}>
+                              {stage.subtitle} • {stageCount} questions
+                            </Text>
+                            <Text style={styles.stageDescription}>{stage.description}</Text>
+                          </View>
+                        </View>
+                        <Link
+                          href={{
+                            pathname: '/practice',
+                            params: {
+                              path: path.id,
+                              stage: stage.id,
+                              guide: 'true',
+                            },
+                          }}
+                          asChild
+                        >
+                          <Pressable
+                            style={{
+                              ...styles.stageButton,
+                              ...(done ? styles.stageButtonDone : {}),
+                            }}
+                          >
+                            <Text style={styles.stageButtonText}>{done ? 'Review' : 'Start'}</Text>
+                          </Pressable>
+                        </Link>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+        {!isLoaded ? <Text style={styles.progressLoading}>Loading journey progress…</Text> : null}
+
+        {/* <View style={styles.cardGrid}>
           <Link href="/practice" asChild>
             <Pressable style={styles.cardAll}>
-              <Text style={styles.cardTitleAlt}>All Questions</Text>
+              <Text style={styles.cardTitleAlt}>Free Practice</Text>
               <Text style={styles.cardBodyAlt}>
-                Jump into mixed exercises across every level.
+                Mix all questions and train freely across all levels and categories.
               </Text>
             </Pressable>
           </Link>
@@ -134,7 +239,7 @@ const Index = () => {
               </Pressable>
             </Link>
           ))}
-        </View>
+        </View> */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -159,6 +264,167 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
+  hero: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    padding: 20,
+    gap: 10,
+  },
+  heroTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  heroBody: {
+    fontSize: 16,
+    color: '#dbeafe',
+    lineHeight: 24,
+  },
+  pathCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    padding: 18,
+    gap: 10,
+  },
+  carouselContent: {
+    paddingRight: 8,
+    gap: 12,
+  },
+  carouselCard: {
+    width: 336,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    padding: 18,
+    gap: 10,
+  },
+  pathHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  pathHeaderTextWrap: {
+    flex: 1,
+  },
+  pathStatusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pathStatusDone: {
+    backgroundColor: '#dcfce7',
+  },
+  pathStatusActive: {
+    backgroundColor: '#e0e7ff',
+  },
+  pathStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  pathTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  pathDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.mutedText,
+  },
+  stageList: {
+    gap: 10,
+    marginTop: 4,
+  },
+  stageRow: {
+    alignItems: 'stretch',
+    borderWidth: 1,
+    borderColor: '#d6dcff',
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: '#f8f9ff',
+    gap: 10,
+  },
+  stageTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  stageBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageBadgeText: {
+    color: colors.background,
+    fontWeight: '700',
+  },
+  stageBadgeDone: {
+    backgroundColor: '#16a34a',
+  },
+  stageTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  stageTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  stageMeta: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  stageDescription: {
+    fontSize: 13,
+    color: colors.mutedText,
+    lineHeight: 19,
+  },
+  stageButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'stretch',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  stageButtonText: {
+    color: colors.background,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  stageButtonDone: {
+    backgroundColor: '#15803d',
+  },
+  progressLoading: {
+    marginTop: -4,
+    marginBottom: 8,
+    fontSize: 13,
+    color: colors.mutedText,
+  },
+  resetButton: {
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+    backgroundColor: '#eef2ff',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  resetButtonText: {
+    color: colors.primary,
+    fontWeight: '600',
+    fontSize: 13,
+  },
   subheading: {
     fontSize: 18,
     color: colors.mutedText,
@@ -174,6 +440,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: colors.primary,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   card: {
     backgroundColor: colors.surface,
