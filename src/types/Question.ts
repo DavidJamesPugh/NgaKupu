@@ -38,6 +38,10 @@ export interface QuestionBase {
    * Learning modality classification (vocabulary/comprehension, written/listening).
    */
   category: QuestionCategory;
+  /**
+   * Optional teaching notes shown in the Lesson Guide modal.
+   */
+  lessonGuide?: string[];
 }
 
 export interface MultipleChoiceOption {
@@ -160,6 +164,15 @@ export interface TranslationChoiceQuestion extends QuestionBase {
    * How many wrong options to show alongside the correct one (default 2 → three choices total).
    */
   wrongOptionCount?: number;
+  /**
+   * Optional phrase-level alignment for visual teaching.
+   * Each pair highlights matching source/target chunks using the same color.
+   */
+  phraseMatches?: {
+    source: string;
+    target: string;
+    color: string;
+  }[];
   /**
    * Optional line shown after answering (e.g. gloss or alternative wording).
    */

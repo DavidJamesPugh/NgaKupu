@@ -29,6 +29,7 @@ interface LessonConfig {
   optionCount?: number;
   categoryOverride?: QuestionCategory;
   transcript?: string;
+  lessonGuide?: string[];
 }
 
 const VOCABULARY: VocabularyEntry[] = [
@@ -129,6 +130,7 @@ const LESSONS: LessonConfig[] = [
     sourceText: 'Octopus',
     useAnswerImage: true,
     optionCount: 3,
+    lessonGuide: ['He aha... ? = What is...?', 'Choose the kupu that matches the image.'],
   },
   {
     id: 'lesson-whetu-audio',
@@ -140,6 +142,7 @@ const LESSONS: LessonConfig[] = [
     audio: require('../../assets/audio/whetu.mp3'),
     transcript: 'Whetū',
     optionCount: 3,
+    lessonGuide: ['Whakarongo = Listen.', 'Whetū = Star.'],
   },
   {
     id: 'lesson-farewell-audio',
@@ -151,6 +154,7 @@ const LESSONS: LessonConfig[] = [
     audio: require('../../assets/audio/e-noho-ra.mp3'),
     transcript: 'E noho rā',
     optionCount: 3,
+    lessonGuide: ['E noho rā = Goodbye (to someone staying).'],
   },
   {
     id: 'lesson-cat',
@@ -162,6 +166,7 @@ const LESSONS: LessonConfig[] = [
     useAnswerImage: true,
     sourceText: 'Cat',
     optionCount: 3,
+    lessonGuide: ['Choose the matching Māori word.', 'Ngeru = Cat.'],
   },
   {
     id: 'lesson-greeting',
@@ -172,6 +177,7 @@ const LESSONS: LessonConfig[] = [
     sourceLanguage: 'maori',
     sourceText: 'Kia ora',
     optionCount: 4,
+    lessonGuide: ['Kia ora = Hello / thanks / well-being greeting.'],
   },
 ];
 
@@ -259,6 +265,7 @@ const buildLessonQuestion = (lesson: LessonConfig): WordMatchQuestion => {
     image,
     audio: lesson.audio,
     category,
+    lessonGuide: lesson.lessonGuide,
   };
 };
 

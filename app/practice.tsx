@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -67,9 +68,7 @@ export default function PracticeScreen() {
   const guideEnabled = guide === 'true';
   const { markStageComplete } = useLearningProgress();
   const completionKeyRef = useRef<string | undefined>(undefined);
-  const autoNextKeyRef = useRef<string | undefined>(undefined);
   const autoReturnRef = useRef(false);
-  const returnTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const questionPool = useMemo<Question[]>(() => createQuestionSet(), []);
   const learningStage = useMemo(() => {
@@ -144,6 +143,7 @@ export default function PracticeScreen() {
   const [responseValue, setResponseValue] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>();
   const [completionMessage, setCompletionMessage] = useState<string>();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   useEffect(() => {
     setSelectedOptionId(undefined);
@@ -189,29 +189,14 @@ export default function PracticeScreen() {
   };
 
   useEffect(() => {
-    if (status !== 'correct' || !hasNext || !currentQuestion) {
-      return;
-    }
-    const key = `${currentQuestion.id}:${currentIndex}`;
-    if (autoNextKeyRef.current === key) {
-      return;
-    }
-    autoNextKeyRef.current = key;
-    const timeout = setTimeout(() => {
-      goToNext();
-    }, 1500);
-    return () => clearTimeout(timeout);
-  }, [status, hasNext, currentQuestion, currentIndex, goToNext]);
-
-  useEffect(() => {
     const isSessionComplete = status === 'correct' && !hasNext;
     if (!isSessionComplete || autoReturnRef.current) {
       return;
     }
     autoReturnRef.current = true;
     const message = learningStage
-      ? `Stage complete: ${learningStage.stage.title}. Returning home...`
-      : 'Session complete. Returning home...';
+      ? `Lesson complete: ${learningStage.stage.title}. `
+      : 'Session complete. ';
     setCompletionMessage(message);
 
     if (pathId && stageId) {
@@ -221,24 +206,11 @@ export default function PracticeScreen() {
         void markStageComplete(pathId, stageId);
       }
     }
-
-    returnTimeoutRef.current = setTimeout(() => {
-      router.push({
-        pathname: '/',
-        params: { progressUpdatedAt: Date.now().toString() },
-      });
-    }, 1800);
-
-    return () => {
-      if (returnTimeoutRef.current) {
-        clearTimeout(returnTimeoutRef.current);
-      }
-    };
   }, [status, hasNext, learningStage, router, pathId, stageId, markStageComplete]);
 
   if (noQuestionsAvailable) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.select({ ios: 'padding', android: undefined })}
@@ -267,9 +239,16 @@ export default function PracticeScreen() {
   const sessionLabel = learningStage
     ? `${learningStage.path.title} • ${learningStage.stage.title}`
     : 'Free Practice Session';
+  const completedCount = status === 'correct' ? currentIndex + 1 : currentIndex;
+  const progressRatio = totalQuestions > 0 ? completedCount / totalQuestions : 0;
+  const progressPercent = Math.max(0, Math.min(100, Math.round(progressRatio * 100)));
+  const guideItems =
+    (questionForDisplay?.lessonGuide && questionForDisplay.lessonGuide.length > 0
+      ? questionForDisplay.lessonGuide
+      : undefined) ?? [coachHint ?? 'Read carefully and focus on key sentence parts.'];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.select({ ios: 'padding', android: undefined })}
@@ -278,6 +257,17 @@ export default function PracticeScreen() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={styles.headerCard}>
+            <View style={styles.header}>
+              <Text style={styles.progressLabel}>{sessionLabel}</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+            </View>
+      <Pressable style={styles.guideButton} onPress={() => setIsGuideOpen(true)}>
+        <Text style={styles.guideButtonText}>Lesson guide</Text>
+      </Pressable>
+          </View>
 
           <View style={styles.sectionSpacing}>
             {renderQuestionCard({
@@ -306,6 +296,20 @@ export default function PracticeScreen() {
                 disabled={status === 'correct'}
               />
             ) : null}
+            {hasNext && status === 'correct' ? (
+              <SecondaryButton label="Next question" onPress={goToNext} />
+            ) : null}
+            {!hasNext && status === 'correct' ? (
+              <SecondaryButton
+                label="Finish Lesson"
+                onPress={() =>
+                  router.push({
+                    pathname: '/',
+                    params: { progressUpdatedAt: Date.now().toString() },
+                  })
+                }
+              />
+            ) : null}
             {status !== 'correct' && hasNext ? (
               <SecondaryButton label="Skip question" onPress={goToNext} />
             ) : null}
@@ -328,6 +332,26 @@ export default function PracticeScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal
+        visible={isGuideOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsGuideOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Lesson Guide</Text>
+            {guideItems.map((item, index) => (
+              <Text key={`${item}-${index}`} style={styles.modalBody}>
+                {`\u2022 ${item}`}
+              </Text>
+            ))}
+            <Pressable style={styles.modalCloseButton} onPress={() => setIsGuideOpen(false)}>
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -490,7 +514,7 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 0,
     paddingBottom: 12,
     gap: 10,
     backgroundColor: colors.background,
@@ -518,9 +542,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressLabel: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.primary,
+  },
+  progressValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#4f46e5',
+  },
+  progressHint: {
+    fontSize: 12,
+    color: colors.mutedText,
+    marginTop: 2,
+  },
+  guideButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+    backgroundColor: '#eef2ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  guideButtonText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
   },
   badgeRow: {
     flexDirection: 'row',
@@ -664,5 +725,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.mutedText,
     lineHeight: 24,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.background,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#6366f1',
+    padding: 18,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  modalBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  modalCloseButton: {
+    marginTop: 10,
+    alignSelf: 'flex-end',
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  modalCloseButtonText: {
+    color: colors.background,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

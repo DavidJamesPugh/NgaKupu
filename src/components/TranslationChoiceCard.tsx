@@ -14,6 +14,89 @@ interface TranslationChoiceCardProps {
 const sourceLanguageLabel = (language: TranslationChoiceQuestion['sourceLanguage']) =>
   language === 'maori' ? 'Te reo Māori' : 'English';
 
+interface Segment {
+  text: string;
+  color?: string;
+}
+
+const buildHighlightedSegments = (
+  text: string,
+  matches: { phrase: string; color: string }[],
+): Segment[] => {
+  if (matches.length === 0) {
+    return [{ text }];
+  }
+
+  const ranges = matches
+    .map(({ phrase, color }) => {
+      const start = text.toLowerCase().indexOf(phrase.toLowerCase());
+      if (start < 0) {
+        return undefined;
+      }
+      return { start, end: start + phrase.length, color };
+    })
+    .filter((item): item is { start: number; end: number; color: string } => Boolean(item))
+    .sort((a, b) => a.start - b.start);
+
+  if (ranges.length === 0) {
+    return [{ text }];
+  }
+
+  const segments: Segment[] = [];
+  let cursor = 0;
+
+  ranges.forEach((range) => {
+    if (range.start < cursor) {
+      return;
+    }
+    if (range.start > cursor) {
+      segments.push({ text: text.slice(cursor, range.start) });
+    }
+    segments.push({
+      text: text.slice(range.start, range.end),
+      color: range.color,
+    });
+    cursor = range.end;
+  });
+
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor) });
+  }
+
+  return segments;
+};
+
+const HighlightedSentence = ({
+  text,
+  matches,
+  style,
+}: {
+  text: string;
+  matches: { phrase: string; color: string }[];
+  style: object;
+}) => {
+  const segments = buildHighlightedSegments(text, matches);
+  return (
+    <Text style={style}>
+      {segments.map((segment, index) => (
+        <Text
+          key={`${segment.text}-${index}`}
+          style={
+            segment.color
+              ? {
+                  textDecorationLine: 'underline',
+                  color: segment.color,
+                }
+              : undefined
+          }
+        >
+          {segment.text}
+        </Text>
+      ))}
+    </Text>
+  );
+};
+
 const TranslationChoiceCardComponent = ({
   question,
   selectedOptionId,
@@ -22,12 +105,24 @@ const TranslationChoiceCardComponent = ({
   disabled = false,
 }: TranslationChoiceCardProps) => {
   const { options } = question;
+  const sourceMatches =
+    question.phraseMatches?.map((item) => ({ phrase: item.source, color: item.color })) ?? [];
+  const targetMatches =
+    question.phraseMatches?.map((item) => ({ phrase: item.target, color: item.color })) ?? [];
 
   return (
     <View style={styles.container}>
       <View style={styles.sentencePanel}>
         <Text style={styles.sourceLabel}>{sourceLanguageLabel(question.sourceLanguage)}</Text>
-        <Text style={styles.sourceText}>{question.sourceText}</Text>
+        {status === 'correct' && sourceMatches.length > 0 ? (
+          <HighlightedSentence
+            text={question.sourceText}
+            matches={sourceMatches}
+            style={styles.sourceText}
+          />
+        ) : (
+          <Text style={styles.sourceText}>{question.sourceText}</Text>
+        )}
       </View>
       <View style={styles.optionsWrapper}>
         {options.map((option) => {
@@ -65,6 +160,16 @@ const TranslationChoiceCardComponent = ({
           );
         })}
       </View>
+      {status === 'correct' && targetMatches.length > 0 ? (
+        <View style={styles.answerPanel}>
+          <Text style={styles.answerLabel}>Matching Translation</Text>
+          <HighlightedSentence
+            text={question.correctAnswerText}
+            matches={targetMatches}
+            style={styles.answerText}
+          />
+        </View>
+      ) : null}
       {status !== 'idle' && question.translationNote ? (
         <Text style={styles.translationNote} accessibilityLiveRegion="polite">
           {question.translationNote}
@@ -82,6 +187,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     gap: 16,
+  },
+  answerPanel: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#cfd8ff',
+    backgroundColor: '#f8faff',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  answerLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  answerText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    lineHeight: 26,
   },
   prompt: {
     fontSize: 15,

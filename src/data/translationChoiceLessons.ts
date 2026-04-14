@@ -30,6 +30,11 @@ export interface TranslationChoiceLessonDef {
    * Wrong options to show each attempt (default 2). Must be ≤ `distractors.length`.
    */
   wrongOptionCount?: number;
+  phraseMatches?: {
+    source: string;
+    target: string;
+  }[];
+  lessonGuide?: string[];
   /** Shown after the learner answers (optional reinforcement) */
   translationNote?: string;
 }
@@ -49,6 +54,16 @@ export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
       'The ducks went to the river.',
     ],
     translationNote: 'Ngā rakiraki: the ducks (plural); ki te whare: to the house.',
+    phraseMatches: [
+      { source: 'Ngā rakiraki', target: 'The ducks' },
+      { source: 'i haere', target: 'went' },
+      { source: 'ki te ngahere', target: 'to the forest' },
+    ],
+    lessonGuide: [
+      'Ngā = plural determiner ("the" for many).',
+      'I haere = went (past action).',
+      'Ki te ngahere = to the forest.',
+    ],
   },
   {
     id: 'kurī-kura',
@@ -62,6 +77,12 @@ export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
       'The dog went to the shop.',
     ],
     translationNote: 'Te kurī: the dog (singular); te kura: the school.',
+    phraseMatches: [
+      { source: 'te kurī', target: 'the dog' },
+      { source: 'i haere', target: 'went' },
+      { source: 'ki te kura', target: 'to the school' },
+    ],
+    lessonGuide: ['Te = singular determiner.', 'Ki te = to the.', 'Kura = school.'],
   },
   {
     id: 'manu-rākau',
@@ -100,6 +121,12 @@ export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
       'Kei te tākaro te tamaiti i te pāka.',
       'Kei te tākaro ngā tamariki i te toa.',
     ],
+    phraseMatches: [
+      { source: 'The children', target: 'ngā tamariki' },
+      { source: 'are playing', target: 'Kei te tākaro' },
+      { source: 'in the park', target: 'i te pāka' },
+    ],
+    lessonGuide: ['Kei te + verb marks ongoing present action.', 'I te pāka = in the park.'],
   },
   {
     id: 'teacher-reading-en-to-mi',
@@ -116,6 +143,21 @@ export const TRANSLATION_CHOICE_LESSONS: TranslationChoiceLessonDef[] = [
 ];
 
 const buildOptionId = (lessonId: string, key: string) => `${lessonId}__${key}`;
+const MAX_PHRASE_MATCHES = 12;
+const PHRASE_MATCH_COLORS = [
+  '#ef4444',
+  '#2563eb',
+  '#16a34a',
+  '#f59e0b',
+  '#7c3aed',
+  '#db2777',
+  '#0891b2',
+  '#ea580c',
+  '#65a30d',
+  '#4f46e5',
+  '#dc2626',
+  '#0d9488',
+] as const;
 
 /**
  * Builds shuffled options: one correct + `wrongOptionCount` distractors sampled from the pool.
@@ -154,6 +196,12 @@ export const translationDefToQuestion = (
     );
   }
 
+  if (def.phraseMatches && def.phraseMatches.length > MAX_PHRASE_MATCHES) {
+    throw new Error(
+      `Translation lesson "${def.id}" has ${def.phraseMatches.length} phrase matches. Maximum is ${MAX_PHRASE_MATCHES}.`,
+    );
+  }
+
   const correctOptionId = buildOptionId(def.id, 'correct');
 
   const base: TranslationChoiceQuestion = {
@@ -167,6 +215,11 @@ export const translationDefToQuestion = (
     correctAnswerText: def.correctAnswer,
     distractorPool: def.distractors,
     wrongOptionCount,
+    phraseMatches: def.phraseMatches?.map((match, index) => ({
+      ...match,
+      color: PHRASE_MATCH_COLORS[index % PHRASE_MATCH_COLORS.length],
+    })),
+    lessonGuide: def.lessonGuide,
     difficulty: def.difficulty,
     category: 'written-comprehension',
     translationNote: def.translationNote,
