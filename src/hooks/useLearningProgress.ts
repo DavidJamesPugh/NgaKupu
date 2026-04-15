@@ -101,8 +101,9 @@ export const useLearningProgress = () => {
 
   const getPathProgress = useCallback(
     (path: LearningPath) => {
-      const totalStages = path.stages.length;
-      const completeStages = path.stages.filter((stage) =>
+      const completionStages = path.stages.filter((stage) => stage.countsTowardCompletion !== false);
+      const totalStages = completionStages.length;
+      const completeStages = completionStages.filter((stage) =>
         completedStageIds.has(makeStageKey(path.id, stage.id)),
       ).length;
       const isComplete = totalStages > 0 && completeStages === totalStages;

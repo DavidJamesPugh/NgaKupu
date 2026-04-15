@@ -6,6 +6,9 @@ export interface LearningStage {
   subtitle: string;
   description: string;
   questionCount: number;
+  isInfoStage?: boolean;
+  journeyGuide?: string[];
+  countsTowardCompletion?: boolean;
   /**
    * Optional curated question IDs in teaching order.
    * If provided, these are used first before fallback filtering.
@@ -29,6 +32,21 @@ export const LEARNING_PATHS: LearningPath[] = [
     title: 'Foundation Journey',
     description: 'Build confidence from single kupu to full sentence translation.',
     stages: [
+      {
+        id: 'foundation-intro',
+        title: 'Journey Introduction',
+        subtitle: 'Stage 0',
+        description: 'See what you will learn before you start Stage 1.',
+        questionCount: 0,
+        isInfoStage: true,
+        countsTowardCompletion: false,
+        journeyGuide: [
+          'This journey starts with core kupu and image matching.',
+          'You then add listening to build confidence with spoken te reo.',
+          'Finally, you move into sentence meaning and construction.',
+        ],
+        coachTip: 'Read this first, then begin Kupu Kickoff.',
+      },
       {
         id: 'kupu-kickoff',
         title: 'Kupu Kickoff',
@@ -86,6 +104,21 @@ export const LEARNING_PATHS: LearningPath[] = [
     title: 'Conversation Journey',
     description: 'Strengthen sentence meaning and translation choices in context.',
     stages: [
+      {
+        id: 'conversation-intro',
+        title: 'Journey Introduction',
+        subtitle: 'Stage 0',
+        description: 'Preview how this journey develops your conversation skills.',
+        questionCount: 0,
+        isInfoStage: true,
+        countsTowardCompletion: false,
+        journeyGuide: [
+          'You begin with everyday phrases and practical sentence meaning.',
+          'Then you blend reading and listening comprehension.',
+          'You finish with a mixed fluency check across key skills.',
+        ],
+        coachTip: 'Use this overview to set your learning focus.',
+      },
       {
         id: 'everyday-phrases',
         title: 'Everyday Phrases',

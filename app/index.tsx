@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createQuestionSet, createQuestionSetAsync } from '../src/data/sampleQuestions';
@@ -55,6 +55,11 @@ const categoryDescriptions: Record<Category, string> = {
 const Index = () => {
   const { progressUpdatedAt } = useLocalSearchParams<{ progressUpdatedAt?: string }>();
   const [questionSet, setQuestionSet] = useState<Question[]>(() => createQuestionSet());
+  const [activeJourneyGuide, setActiveJourneyGuide] = useState<{
+    pathTitle: string;
+    stageTitle: string;
+    lines: string[];
+  } | null>(null);
   const { isLoaded, refreshProgress, clearProgress, getPathProgress, isStageComplete } =
     useLearningProgress();
 
@@ -139,7 +144,6 @@ const Index = () => {
                 <View style={styles.pathHeaderRow}>
                   <View style={styles.pathHeaderTextWrap}>
                     <Text style={styles.pathTitle}>{path.title}</Text>
-                    <Text style={styles.pathDescription}>{path.description}</Text>
                   </View>
                   <View
                     style={{
@@ -154,7 +158,8 @@ const Index = () => {
                 </View>
                 <View style={styles.stageList}>
                   {path.stages.map((stage, index) => {
-                    const done = isStageComplete(path.id, stage.id);
+                    const isInfoStage = stage.isInfoStage === true;
+                    const done = isInfoStage ? false : isStageComplete(path.id, stage.id);
                     const stageCount = getStageQuestionCount(questionSet, stage);
                     return (
                       <View key={stage.id} style={styles.stageRow}>
@@ -165,36 +170,51 @@ const Index = () => {
                               ...(done ? styles.stageBadgeDone : {}),
                             }}
                           >
-                            <Text style={styles.stageBadgeText}>{done ? '✓' : index + 1}</Text>
+                            <Text style={styles.stageBadgeText}>{done ? '✓' : index }</Text>
                           </View>
                           <View style={styles.stageTextWrap}>
                             <Text style={styles.stageTitle}>{stage.title}</Text>
-                            <Text style={styles.stageMeta}>
-                              {stage.subtitle} • {stageCount} questions
-                            </Text>
-                            <Text style={styles.stageDescription}>{stage.description}</Text>
+                            
                           </View>
                         </View>
-                        <Link
-                          href={{
-                            pathname: '/practice',
-                            params: {
-                              path: path.id,
-                              stage: stage.id,
-                              guide: 'true',
-                            },
-                          }}
-                          asChild
-                        >
+                        {isInfoStage ? (
                           <Pressable
-                            style={{
-                              ...styles.stageButton,
-                              ...(done ? styles.stageButtonDone : {}),
-                            }}
+                            style={styles.stageInfoButton}
+                            onPress={() =>
+                              setActiveJourneyGuide({
+                                pathTitle: path.title,
+                                stageTitle: stage.title,
+                                lines:
+                                  stage.journeyGuide && stage.journeyGuide.length > 0
+                                    ? stage.journeyGuide
+                                    : ['This journey introduction will be added soon.'],
+                              })
+                            }
                           >
-                            <Text style={styles.stageButtonText}>{done ? 'Review' : 'Start'}</Text>
+                            <Text style={styles.stageInfoButtonText}>About Journey</Text>
                           </Pressable>
-                        </Link>
+                        ) : (
+                          <Link
+                            href={{
+                              pathname: '/practice',
+                              params: {
+                                path: path.id,
+                                stage: stage.id,
+                                guide: 'true',
+                              },
+                            }}
+                            asChild
+                          >
+                            <Pressable
+                              style={{
+                                ...styles.stageButton,
+                                ...(done ? styles.stageButtonDone : {}),
+                              }}
+                            >
+                              <Text style={styles.stageButtonText}>{done ? 'Review' : 'Start'}</Text>
+                            </Pressable>
+                          </Link>
+                        )}
                       </View>
                     );
                   })}
@@ -204,6 +224,30 @@ const Index = () => {
           })}
         </ScrollView>
         {!isLoaded ? <Text style={styles.progressLoading}>Loading journey progress…</Text> : null}
+        <Modal
+          visible={Boolean(activeJourneyGuide)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActiveJourneyGuide(null)}
+        >
+          <View style={styles.guideOverlay}>
+            <View style={styles.guideCard}>
+              <Text style={styles.guideTitle}>
+                {activeJourneyGuide?.pathTitle}: {activeJourneyGuide?.stageTitle}
+              </Text>
+              <View style={styles.guideList}>
+                {activeJourneyGuide?.lines.map((line, idx) => (
+                  <Text key={`${line}-${idx}`} style={styles.guideItem}>
+                    {idx + 1}. {line}
+                  </Text>
+                ))}
+              </View>
+              <Pressable style={styles.guideCloseButton} onPress={() => setActiveJourneyGuide(null)}>
+                <Text style={styles.guideCloseText}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         {/* <View style={styles.cardGrid}>
           <Link href="/practice" asChild>
@@ -419,6 +463,22 @@ const styles = StyleSheet.create({
   stageButtonDone: {
     backgroundColor: '#15803d',
   },
+  stageInfoButton: {
+    borderRadius: 10,
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'stretch',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  stageInfoButtonText: {
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
   progressLoading: {
     marginTop: -4,
     marginBottom: 8,
@@ -458,6 +518,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  guideOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  guideCard: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: '#d6dcff',
+    padding: 18,
+    gap: 12,
+  },
+  guideTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  guideList: {
+    gap: 8,
+  },
+  guideItem: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  guideCloseButton: {
+    alignSelf: 'flex-end',
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  guideCloseText: {
+    color: colors.background,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: colors.surface,
