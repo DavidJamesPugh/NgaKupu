@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { createQuestionSet } from '../src/data/sampleQuestions';
+import { createQuestionSet, createQuestionSetAsync } from '../src/data/sampleQuestions';
 import { LEARNING_PATHS, getStageQuestionCount } from '../src/data/learningPaths';
 import { useLearningProgress } from '../src/hooks/useLearningProgress';
 import type { Question } from '../src/types/Question';
@@ -54,13 +54,26 @@ const categoryDescriptions: Record<Category, string> = {
 
 const Index = () => {
   const { progressUpdatedAt } = useLocalSearchParams<{ progressUpdatedAt?: string }>();
-  const questionSet = useMemo<Question[]>(() => createQuestionSet(), []);
+  const [questionSet, setQuestionSet] = useState<Question[]>(() => createQuestionSet());
   const { isLoaded, refreshProgress, clearProgress, getPathProgress, isStageComplete } =
     useLearningProgress();
 
   useEffect(() => {
     refreshProgress();
   }, [progressUpdatedAt, refreshProgress]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const next = await createQuestionSetAsync();
+      if (!cancelled) {
+        setQuestionSet(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const availableDifficulties = useMemo<Difficulty[]>(() => {
     const present = new Set<Difficulty>();

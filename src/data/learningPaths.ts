@@ -6,6 +6,11 @@ export interface LearningStage {
   subtitle: string;
   description: string;
   questionCount: number;
+  /**
+   * Optional curated question IDs in teaching order.
+   * If provided, these are used first before fallback filtering.
+   */
+  questionIds?: string[];
   difficulty?: NonNullable<Question['difficulty']>;
   categories?: Question['category'][];
   coachTip: string;
@@ -29,6 +34,11 @@ export const LEARNING_PATHS: LearningPath[] = [
         title: 'Kupu Kickoff',
         subtitle: 'Stage 1',
         description: 'Start with easy vocabulary matching in written prompts.',
+        questionIds: [
+          'lesson-lesson-octopus',
+          'lesson-lesson-cat',
+          'lesson-lesson-greeting',
+        ],
         difficulty: 'tamariki',
         categories: ['written-vocabulary'],
         questionCount: 6,
@@ -40,6 +50,11 @@ export const LEARNING_PATHS: LearningPath[] = [
         title: 'Listen and Match',
         subtitle: 'Stage 2',
         description: 'Add listening prompts while keeping vocabulary manageable.',
+        questionIds: [
+          'lesson-lesson-whetu-audio',
+          'lesson-lesson-farewell-audio',
+          'db-wordmatch-whetu-audio',
+        ],
         difficulty: 'tamariki',
         categories: ['listening-vocabulary'],
         questionCount: 6,
@@ -51,6 +66,13 @@ export const LEARNING_PATHS: LearningPath[] = [
         title: 'Sentence Builder',
         subtitle: 'Stage 3',
         description: 'Move into short sentence comprehension and translation choices.',
+        questionIds: [
+          'db-translation-ducks-forest',
+          'db-translation-children-park',
+          'db-translation-cat-sleeping-house',
+          'word-order-word-order-ducks-forest',
+          'word-order-word-order-children-park',
+        ],
         difficulty: 'tauira',
         categories: ['written-comprehension'],
         questionCount: 8,
@@ -129,7 +151,7 @@ export const getStageQuestionPool = (
   questions: Question[],
   stage: LearningStage,
 ): Question[] => {
-  return questions.filter((question) => {
+  const fallbackFiltered = questions.filter((question) => {
     if (stage.difficulty && question.difficulty !== stage.difficulty) {
       return false;
     }
@@ -138,6 +160,19 @@ export const getStageQuestionPool = (
     }
     return true;
   });
+
+  if (!stage.questionIds || stage.questionIds.length === 0) {
+    return fallbackFiltered;
+  }
+
+  const byId = new Map(questions.map((question) => [question.id, question]));
+  const curated = stage.questionIds
+    .map((questionId) => byId.get(questionId))
+    .filter((question): question is Question => Boolean(question));
+
+  const curatedIds = new Set(curated.map((question) => question.id));
+  const fallbackRemaining = fallbackFiltered.filter((question) => !curatedIds.has(question.id));
+  return [...curated, ...fallbackRemaining];
 };
 
 export const getStageQuestionCount = (

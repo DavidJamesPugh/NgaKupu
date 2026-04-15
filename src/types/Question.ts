@@ -11,7 +11,8 @@ export type QuestionKind =
   | 'free-response'
   | 'audio'
   | 'word-match'
-  | 'translation-choice';
+  | 'translation-choice'
+  | 'word-order';
 
 export interface QuestionBase {
   /**
@@ -179,12 +180,35 @@ export interface TranslationChoiceQuestion extends QuestionBase {
   translationNote?: string;
 }
 
+export interface WordOrderQuestion extends QuestionBase {
+  kind: 'word-order';
+  /**
+   * Prompt sentence (usually source language) to construct from tiles.
+   */
+  sourceText: string;
+  sourceLanguage: 'maori' | 'english';
+  tiles: MultipleChoiceOption[];
+  /**
+   * Tile ids in the exact correct order.
+   */
+  correctSequenceIds: string[];
+  /**
+   * Optional phrase-level alignment shown after a correct build.
+   */
+  phraseMatches?: {
+    source: string;
+    target: string;
+    color: string;
+  }[];
+}
+
 export type Question =
   | MultipleChoiceQuestion
   | FreeResponseQuestion
   | AudioPromptQuestion
   | WordMatchQuestion
-  | TranslationChoiceQuestion;
+  | TranslationChoiceQuestion
+  | WordOrderQuestion;
 
 export const isMultipleChoiceQuestion = (
   question: Question,
@@ -205,3 +229,7 @@ export const isAudioPromptQuestion = (
 export const isTranslationChoiceQuestion = (
   question: Question,
 ): question is TranslationChoiceQuestion => question.kind === 'translation-choice';
+
+export const isWordOrderQuestion = (
+  question: Question,
+): question is WordOrderQuestion => question.kind === 'word-order';

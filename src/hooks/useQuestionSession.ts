@@ -5,6 +5,7 @@ import {
   isMultipleChoiceQuestion,
   isTranslationChoiceQuestion,
   isWordMatchQuestion,
+  isWordOrderQuestion,
   type Question,
 } from '../types/Question';
 
@@ -85,6 +86,10 @@ export const useQuestionSession = (
         return currentQuestion.correctOptionId === answer;
       }
 
+      if (isWordOrderQuestion(currentQuestion)) {
+        return currentQuestion.correctSequenceIds.join(' ') === answer.trim();
+      }
+
       const candidate = normalise(answer, matchCase);
       const acceptable = currentQuestion.acceptableAnswers.map((value) =>
         normalise(value, matchCase),
@@ -163,6 +168,9 @@ export const getSubmissionPlaceholder = (question: Question): string => {
   }
   if (isTranslationChoiceQuestion(question)) {
     return 'Tap the correct translation';
+  }
+  if (isWordOrderQuestion(question)) {
+    return 'Build the sentence with tiles';
   }
   if (isAudioPromptQuestion(question)) {
     return 'Type the translation you heard';

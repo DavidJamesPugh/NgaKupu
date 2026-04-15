@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createQuestionSet } from '../src/data/sampleQuestions';
+import { createQuestionSet, createQuestionSetAsync } from '../src/data/sampleQuestions';
 import { buildTranslationChoiceOptions } from '../src/data/translationChoiceLessons';
 import { applyStageFilters, findLearningStage } from '../src/data/learningPaths';
 import {
@@ -20,6 +20,7 @@ import {
   MultipleChoiceCard,
   TranslationChoiceCard,
   WordMatchCard,
+  WordOrderCard,
 } from '../src/components';
 import {
   getSubmissionPlaceholder,
@@ -33,6 +34,7 @@ import {
   isMultipleChoiceQuestion,
   isTranslationChoiceQuestion,
   isWordMatchQuestion,
+  isWordOrderQuestion,
   type Question,
 } from '../src/types/Question';
 import { colors } from '../src/theme/colors';
@@ -69,14 +71,28 @@ export default function PracticeScreen() {
   const { markStageComplete } = useLearningProgress();
   const completionKeyRef = useRef<string | undefined>(undefined);
   const autoReturnRef = useRef(false);
+  const autoWordOrderCheckRef = useRef<string | undefined>(undefined);
 
-  const questionPool = useMemo<Question[]>(() => createQuestionSet(), []);
+  const [questionPool, setQuestionPool] = useState<Question[]>(() => createQuestionSet());
   const learningStage = useMemo(() => {
     if (!pathId || !stageId) {
       return undefined;
     }
     return findLearningStage({ pathId, stageId });
   }, [pathId, stageId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const next = await createQuestionSetAsync();
+      if (!cancelled) {
+        setQuestionPool(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredQuestions = useMemo(() => {
     if (learningStage) {
@@ -138,8 +154,11 @@ export default function PracticeScreen() {
     (isMultipleChoiceQuestion(currentQuestion) ||
       isWordMatchQuestion(currentQuestion) ||
       isTranslationChoiceQuestion(currentQuestion));
+  const isWordOrderBuildQuestion =
+    currentQuestion != null && isWordOrderQuestion(currentQuestion);
 
   const [selectedOptionId, setSelectedOptionId] = useState<string>();
+  const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
   const [responseValue, setResponseValue] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>();
   const [completionMessage, setCompletionMessage] = useState<string>();
@@ -147,10 +166,12 @@ export default function PracticeScreen() {
 
   useEffect(() => {
     setSelectedOptionId(undefined);
+    setSelectedTileIds([]);
     setResponseValue('');
     setErrorMessage(undefined);
     setCompletionMessage(undefined);
     autoReturnRef.current = false;
+    autoWordOrderCheckRef.current = undefined;
   }, [currentQuestion?.id]);
 
   const placeholder = useMemo(() => {
@@ -180,6 +201,47 @@ export default function PracticeScreen() {
     const result = submitAnswer(optionId);
     handlePostSubmit(result);
   };
+
+  const handleWordTileSelect = (tileId: string) => {
+    setSelectedTileIds((prev) => {
+      if (prev.includes(tileId)) {
+        return prev;
+      }
+      const next = [...prev, tileId];
+      setResponseValue(next.join(' '));
+      return next;
+    });
+    setErrorMessage(undefined);
+  };
+
+  const handleWordTileRemoveAt = (index: number) => {
+    setSelectedTileIds((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      setResponseValue(next.join(' '));
+      return next;
+    });
+  };
+
+  const handleWordTileClear = () => {
+    setSelectedTileIds([]);
+    setResponseValue('');
+  };
+
+  useEffect(() => {
+    if (!currentQuestion || !isWordOrderQuestion(currentQuestion)) {
+      return;
+    }
+    if (selectedTileIds.length !== currentQuestion.correctSequenceIds.length) {
+      return;
+    }
+    const signature = `${currentQuestion.id}:${selectedTileIds.join('|')}`;
+    if (autoWordOrderCheckRef.current === signature) {
+      return;
+    }
+    autoWordOrderCheckRef.current = signature;
+    const result = submitAnswer(selectedTileIds.join(' '));
+    handlePostSubmit(result);
+  }, [currentQuestion, selectedTileIds, submitAnswer]);
 
   const handlePostSubmit = (result: SubmissionResult) => {
     setErrorMessage(undefined);
@@ -277,6 +339,10 @@ export default function PracticeScreen() {
               responseValue,
               placeholder,
               onSelectOption: handleOptionSelect,
+              selectedTileIds,
+              onSelectWordTile: handleWordTileSelect,
+              onRemoveWordTileAt: handleWordTileRemoveAt,
+              onClearWordTiles: handleWordTileClear,
               onChangeResponse: setResponseValue,
               onSubmit: handleSubmit,
             })}
@@ -289,7 +355,7 @@ export default function PracticeScreen() {
           ) : null}
 
           <View style={styles.sectionSpacing}>
-            {!isSelectionQuestion ? (
+            {!isSelectionQuestion && !isWordOrderBuildQuestion ? (
               <PrimaryButton
                 label={status === 'idle' ? 'Check answer' : 'Check again'}
                 onPress={handleSubmit}
@@ -360,9 +426,13 @@ interface RenderCardParams {
   question: Question | undefined;
   status: SubmissionResult;
   selectedOptionId?: string;
+  selectedTileIds: string[];
   responseValue: string;
   placeholder: string;
   onSelectOption: (optionId: string) => void;
+  onSelectWordTile: (tileId: string) => void;
+  onRemoveWordTileAt: (index: number) => void;
+  onClearWordTiles: () => void;
   onChangeResponse: (value: string) => void;
   onSubmit: () => void;
 }
@@ -371,9 +441,13 @@ const renderQuestionCard = ({
   question,
   status,
   selectedOptionId,
+  selectedTileIds,
   responseValue,
   placeholder,
   onSelectOption,
+  onSelectWordTile,
+  onRemoveWordTileAt,
+  onClearWordTiles,
   onChangeResponse,
   onSubmit,
 }: RenderCardParams) => {
@@ -412,6 +486,20 @@ const renderQuestionCard = ({
         selectedOptionId={selectedOptionId}
         status={status}
         onSelectOption={onSelectOption}
+        disabled={status === 'correct'}
+      />
+    );
+  }
+
+  if (isWordOrderQuestion(question)) {
+    return (
+      <WordOrderCard
+        question={question}
+        status={status}
+        selectedTileIds={selectedTileIds}
+        onSelectTile={onSelectWordTile}
+        onRemoveTileAt={onRemoveWordTileAt}
+        onClear={onClearWordTiles}
         disabled={status === 'correct'}
       />
     );

@@ -1,7 +1,13 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { initializeLessonDatabase } from '../src/data/db/lessonDatabase';
 import { colors } from '../src/theme/colors';
 
 export default function RootLayout() {
+  useEffect(() => {
+    void initializeLessonDatabase();
+  }, []);
+
   return (
     <Stack
       screenOptions={{
